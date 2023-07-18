@@ -41,15 +41,24 @@ class BackyardFlyer(Drone):
 
         This triggers when `MsgID.LOCAL_POSITION` is received and self.local_position contains new data
         """
-        pass
+        if self.flight_state == States.TAKEOFF or \
+                (self.flight_state == States.WAYPOINT and
+                 (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.5)
+                ):
+            self.waypoint_transition()
+
+    def get_distance_between_3D_points(self,point1 , point2 ):
+        return (sum([(xi - yi)**2 for xi,yi in zip(point1,point2)]))**0.5
 
     def velocity_callback(self):
         """
         TODO: Implement this method
-
         This triggers when `MsgID.LOCAL_VELOCITY` is received and self.local_velocity contains new data
         """
-        pass
+        if self.flight_state == States.LANDING:
+            if((self.global_position[2] - self.global_home[2] < 0.1) and
+                abs(self.local_position[2]) < 0.01):
+                self.disarming_transition()
 
     def state_callback(self):
         """
@@ -69,22 +78,23 @@ class BackyardFlyer(Drone):
         elif self.flight_state == States.DISARMING:
             if not self.armed:
                 self.disarming_transition()
-        elif self.flight_state == States.WAYPOINT:
-            if not self.wa:
-                self.disarming_transition()
+        elif self.flight_state == States.LANDING:
+            self.landing_transition()
 
 
 
-    def calculate_box(self):
+
+
+    def calculate_box(self,flight_box_size = 10):
         """TODO: Fill out this method
         
         1. Return waypoints to fly a box
         """
-        flight_box_size = 10
-        waypoints = [[flight_box_size,0],
-                     [flight_box_size,flight_box_size],
-                     [0,flight_box_size],
-                     [0,0]]
+
+        waypoints = [[flight_box_size,0,3,0],
+                     [flight_box_size,flight_box_size,3,0],
+                     [0,flight_box_size,3,0],
+                     [0,0,3,0]]
         return waypoints
 
     def arming_transition(self):
@@ -112,6 +122,7 @@ class BackyardFlyer(Drone):
         print("takeoff transition")
         self.takeoff(3.0)
         self.flight_state = States.TAKEOFF
+        self.all_waypoints = self.calculate_box()
 
     def waypoint_transition(self):
         """TODO: Fill out this method
@@ -120,6 +131,12 @@ class BackyardFlyer(Drone):
         2. Transition to WAYPOINT state
         """
         print("waypoint transition")
+        if len(self.all_waypoints):
+            self.target_position = self.all_waypoints.pop(0)
+            #self.cmd_position(*self.target_position)
+            self.cmd_position(10,0,3,0)
+            self.flight_state = States.WAYPOINT
+
 
 
     def landing_transition(self):

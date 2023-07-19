@@ -43,12 +43,13 @@ class BackyardFlyer(Drone):
         """
         if self.flight_state == States.TAKEOFF or \
                 (self.flight_state == States.WAYPOINT and
-                 (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.5)
+                 (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.2)
                 ):
             self.waypoint_transition()
 
     def get_distance_between_3D_points(self,point1 , point2 ):
-        return (sum([(xi - yi)**2 for xi,yi in zip(point1,point2)]))**0.5
+        point2_sign = [1,1,-1]
+        return (sum([(xi - si*yi)**2 for xi,yi,si in zip(point1,point2,point2_sign)]))**0.5
 
     def velocity_callback(self):
         """
@@ -80,9 +81,12 @@ class BackyardFlyer(Drone):
                 self.disarming_transition()
         elif self.flight_state == States.LANDING:
             self.landing_transition()
-
-
-
+        elif (self.flight_state == States.WAYPOINT) :
+            print("local_position={}".format(self.local_position))
+            print("target_position={}".format(self.target_position))
+            print("get_distance_between_3D_points(local_position,target_position)={}".format(self.get_distance_between_3D_points(self.local_position,self.target_position)))
+            if (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.2):
+                self.waypoint_transition()
 
 
     def calculate_box(self,flight_box_size = 10):

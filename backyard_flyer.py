@@ -26,6 +26,7 @@ class BackyardFlyer(Drone):
         self.all_waypoints = []
         self.in_mission = True
         self.check_state = {}
+        self.waypoint_start_time = 0
 
         # initial state
         self.flight_state = States.MANUAL
@@ -41,33 +42,35 @@ class BackyardFlyer(Drone):
 
         This triggers when `MsgID.LOCAL_POSITION` is received and self.local_position contains new data
         """
-        if self.flight_state == States.TAKEOFF or \
-                (self.flight_state == States.WAYPOINT and
-                 (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.2)
-                ):
-            self.waypoint_transition()
+        if self.flight_state == States.WAYPOINT :
+            if (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.2):
+                print("local_position={} local_position_time ={}".format(self.local_position, self.local_position_time))
+                print("target_position={}".format(self.target_position))
+                print("get_distance_between_3D_points(local_position,target_position)={}".format(
+                    self.get_distance_between_3D_points(self.local_position, self.target_position)))
+                self.waypoint_transition()
 
     def get_distance_between_3D_points(self,point1 , point2 ):
         point2_sign = [1,1,-1]
-        return (sum([(xi - si*yi)**2 for xi,yi,si in zip(point1,point2,point2_sign)]))**0.5
+        return (sum([(xi - si*yi)**2 for xi,yi,si in zip(point1[:3],point2[:3],point2_sign)]))**0.5
 
     def velocity_callback(self):
         """
         TODO: Implement this method
         This triggers when `MsgID.LOCAL_VELOCITY` is received and self.local_velocity contains new data
         """
+
         if self.flight_state == States.LANDING:
             if((self.global_position[2] - self.global_home[2] < 0.1) and
                 abs(self.local_position[2]) < 0.01):
                 self.disarming_transition()
-
     def state_callback(self):
         """
         TODO: Implement this method
 
         This triggers when `MsgID.STATE` is received and self.armed and self.guided contain new data
         """
-        print("state_callback sself.in_mission={}".format(self.in_mission))
+        print("state_callback self.in_mission={}".format(self.in_mission))
         if not self.in_mission:
             return
         print("state_callback self.flight_phase={}".format(self.flight_state))
@@ -78,15 +81,12 @@ class BackyardFlyer(Drone):
                 self.takeoff_transition()
         elif self.flight_state == States.DISARMING:
             if not self.armed:
-                self.disarming_transition()
+                self.manual_transition()
         elif self.flight_state == States.LANDING:
             self.landing_transition()
-        elif (self.flight_state == States.WAYPOINT) :
-            print("local_position={}".format(self.local_position))
-            print("target_position={}".format(self.target_position))
-            print("get_distance_between_3D_points(local_position,target_position)={}".format(self.get_distance_between_3D_points(self.local_position,self.target_position)))
-            if (self.get_distance_between_3D_points(self.local_position,self.target_position) < 0.2):
-                self.waypoint_transition()
+        elif self.flight_state == States.TAKEOFF:
+            self.waypoint_transition()
+
 
 
     def calculate_box(self,flight_box_size = 10):
@@ -138,8 +138,13 @@ class BackyardFlyer(Drone):
         if len(self.all_waypoints):
             self.target_position = self.all_waypoints.pop(0)
             #self.cmd_position(*self.target_position)
-            self.cmd_position(10,0,3,0)
-            self.flight_state = States.WAYPOINT
+            if self.flight_state != States.WAYPOINT:
+                self.flight_state = States.WAYPOINT
+            self.cmd_position(*self.target_position)
+            #self.waypoint_start_time = self.local_position_time
+        else:
+            print("No waypoints anymore , change state to LANDING")
+            self.flight_state = States.LANDING
 
 
 
